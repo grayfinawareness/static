@@ -5,54 +5,68 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Schedule a Meeting | Fin-Awareness</title>
     <style>
+        /* 1. CSS RESET for Zoom Stability */
+        * {
+            box-sizing: border-box;
+        }
+        
         body {
             font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
             background-color: #f4f6f8;
             margin: 0;
+            padding: 20px; /* Add padding to body instead of centering with flexbox to prevent scroll issues */
             display: flex;
-            justify-content: center;
+            flex-direction: column;
             align-items: center;
             min-height: 100vh;
-            /* PREVENT HORIZONTAL SCROLL */
-            overflow-x: hidden;
         }
+
+        /* 2. STATUS BAR for Debugging (Visible to you) */
+        #status-bar {
+            width: 100%;
+            max-width: 800px;
+            padding: 10px;
+            margin-bottom: 10px;
+            text-align: center;
+            border-radius: 4px;
+            font-size: 14px;
+            font-weight: bold;
+            display: none; /* Hidden by default */
+        }
+        .status-waiting { background-color: #e3f2fd; color: #0d47a1; display: block !important; }
+        .status-success { background-color: #e8f5e9; color: #1b5e20; }
+        .status-error   { background-color: #ffebee; color: #b71c1c; }
+
         .container {
             background: white;
-            /* CHANGED: Use 90% width to prevent edge-touching at high zoom */
-            width: 90%; 
-            max-width: 1000px;
+            width: 100%;
+            /* Reduced max-width to ensure it fits on zoomed screens */
+            max-width: 800px; 
             box-shadow: 0 4px 12px rgba(0,0,0,0.1);
             border-radius: 8px;
             overflow: hidden;
-            min-height: 700px;
             position: relative;
         }
-        .loading {
-            position: absolute;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%);
-            text-align: center;
-            color: #666;
-        }
+
         .my-calendar-wrapper {
-            height: 700px;
-            /* CHANGED: Width 100% ensures it stays inside the parent */
+            height: 750px; /* Increased slightly for comfort */
             width: 100%;
         }
     </style>
 </head>
 <body>
 
+    <div id="status-bar" class="status-waiting">
+        Status: Waiting for booking...
+    </div>
+
     <div class="container" id="booking-container">
-        <div class="loading" id="loading-msg">Loading calendar...</div>
         <div class="my-calendar-wrapper" id="calendly-embed"></div>
     </div>
 
     <script type="text/javascript" src="https://assets.calendly.com/assets/external/widget.js"></script>
 
     <script>
-        // 1. CONFIGURATION
         const ADVISOR_NAME = 'Sergey Skripko';
         const CALENDLY_URL = 'https://calendly.com/grayskripko/1-hour-meeting';
         const WEBHOOK_URL = 'https://hook.us2.make.com/r6fji0dfw48g5hwx1b8i1u0al1tfkj88';
@@ -64,12 +78,11 @@
             const leadEmail = params.get('email') || '';
             const leadCompany = params.get('company') || '';
 
-            const loadingMsg = document.getElementById('loading-msg');
+            const statusBar = document.getElementById('status-bar');
             const widgetContainer = document.getElementById('calendly-embed');
 
             // Init Widget
             if (typeof Calendly !== 'undefined') {
-                loadingMsg.style.display = 'none';
                 Calendly.initInlineWidget({
                     url: CALENDLY_URL,
                     parentElement: widgetContainer,
@@ -84,18 +97,22 @@
                     }
                 });
             } else {
-                loadingMsg.innerHTML = "Error loading calendar script. Please refresh.";
+                statusBar.className = 'status-error';
+                statusBar.innerHTML = "Error: Calendly script failed to load.";
             }
 
-            // 2. DEBUGGING & ATTRIBUTION
+            // EVENT LISTENER
             window.addEventListener("message", function(e) {
-                // Filter out non-Calendly messages to keep console cleanish
-                if(e.origin === "https://calendly.com") {
-                    // LOG ALL CALENDLY EVENTS TO SEE WHAT IS HAPPENING
-                    console.log("Calendly Event Fired:", e.data.event);
+                if(e.origin === "https://calendly.com" && e.data.event) {
                     
+                    // LOG FOR YOU (Optional)
+                    console.log("Event:", e.data.event);
+
                     if (e.data.event === "calendly.event_scheduled") {
-                        console.log("✅ Booking Confirmed. Attempting Webhook...");
+                        
+                        // UPDATE UI
+                        statusBar.innerHTML = "✅ Booking Confirmed! Sending data to Make.com...";
+                        statusBar.className = 'status-waiting'; // Blue while sending
 
                         const payload = {
                             advisor_name: ADVISOR_NAME,
@@ -113,12 +130,17 @@
                         })
                         .then(response => {
                             if(response.ok) {
-                                console.log("✅ Webhook Success: Data sent to Make.com");
+                                statusBar.innerHTML = "🎉 Success! Data sent to automation.";
+                                statusBar.className = 'status-success';
                             } else {
-                                console.error("❌ Webhook Failed: Server responded with " + response.status);
+                                statusBar.innerHTML = "⚠️ Webhook Error: Server rejected data.";
+                                statusBar.className = 'status-error';
                             }
                         })
-                        .catch(err => console.error('❌ Webhook Network Error:', err));
+                        .catch(err => {
+                            statusBar.innerHTML = "❌ Network Error: Could not reach Make.com";
+                            statusBar.className = 'status-error';
+                        });
                     }
                 }
             });
