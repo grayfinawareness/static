@@ -32,8 +32,8 @@
             text-align: center;
             color: #666;
         }
-        /* Hide scrollbars on the widget container */
-        .calendly-inline-widget {
+        /* We use a custom class for the widget now to prevent auto-loading conflicts */
+        .my-calendar-wrapper {
             height: 700px;
             min-width: 320px;
         }
@@ -43,27 +43,20 @@
 
     <div class="container" id="booking-container">
         <div class="loading" id="loading-msg">Loading calendar...</div>
-        <div class="calendly-inline-widget" id="calendly-embed" style="display:none;"></div>
+        <div class="my-calendar-wrapper" id="calendly-embed"></div>
     </div>
 
-    <script type="text/javascript" src="https://assets.calendly.com/assets/external/widget.js" async></script>
+    <script type="text/javascript" src="https://assets.calendly.com/assets/external/widget.js"></script>
 
     <script>
-        // 1. CONFIGURATION
-        // ----------------
-        // We hardcode ONLY you. No list exposed.
         const ADVISOR_NAME = 'Sergey Skripko';
         const CALENDLY_URL = 'https://calendly.com/grayskripko/1-hour-meeting';
         
-        // PASTE YOUR MAKE.COM WEBHOOK URL INSIDE THE QUOTES BELOW:
         const WEBHOOK_URL = 'https://hook.us2.make.com/r6fji0dfw48g5hwx1b8i1u0al1tfkj88';
 
-        // 2. LOGIC
-        // ------------------
         document.addEventListener("DOMContentLoaded", function() {
             const params = new URLSearchParams(window.location.search);
             
-            // We still grab lead info from the URL to track who booked
             const leadName = params.get('name') || '';
             const leadEmail = params.get('email') || '';
             const leadCompany = params.get('company') || '';
@@ -71,11 +64,9 @@
             const loadingMsg = document.getElementById('loading-msg');
             const widgetContainer = document.getElementById('calendly-embed');
 
-            // Initialize Calendly
-            setTimeout(() => {
+            if (typeof Calendly !== 'undefined') {
                 loadingMsg.style.display = 'none';
-                widgetContainer.style.display = 'block';
-
+                
                 Calendly.initInlineWidget({
                     url: CALENDLY_URL,
                     parentElement: widgetContainer,
@@ -89,10 +80,10 @@
                         utm_campaign: leadCompany 
                     }
                 });
-            }, 500);
+            } else {
+                loadingMsg.innerHTML = "Error loading calendar script. Please refresh.";
+            }
 
-            // 3. ATTRIBUTION (SEND DATA TO MAKE.COM)
-            // -------------------------------
             function isCalendlyEvent(e) {
                 return e.origin === "https://calendly.com" && 
                        e.data.event && 
@@ -104,7 +95,7 @@
                     console.log("Booking Confirmed. Sending data...");
 
                     const payload = {
-                        advisor_name: ADVISOR_NAME, // Always Sergey
+                        advisor_name: ADVISOR_NAME,
                         lead_email: leadEmail,
                         lead_name: leadName,
                         lead_company: leadCompany,
@@ -116,6 +107,8 @@
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify(payload)
+                    }).then(() => {
+                        console.log("Data sent to Make.com successfully");
                     }).catch(err => console.error('Webhook Error:', err));
                 }
             });
