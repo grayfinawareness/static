@@ -13,10 +13,13 @@
             justify-content: center;
             align-items: center;
             min-height: 100vh;
+            /* PREVENT HORIZONTAL SCROLL */
+            overflow-x: hidden;
         }
         .container {
             background: white;
-            width: 100%;
+            /* CHANGED: Use 90% width to prevent edge-touching at high zoom */
+            width: 90%; 
             max-width: 1000px;
             box-shadow: 0 4px 12px rgba(0,0,0,0.1);
             border-radius: 8px;
@@ -34,7 +37,8 @@
         }
         .my-calendar-wrapper {
             height: 700px;
-            min-width: 320px;
+            /* CHANGED: Width 100% ensures it stays inside the parent */
+            width: 100%;
         }
     </style>
 </head>
@@ -48,6 +52,7 @@
     <script type="text/javascript" src="https://assets.calendly.com/assets/external/widget.js"></script>
 
     <script>
+        // 1. CONFIGURATION
         const ADVISOR_NAME = 'Sergey Skripko';
         const CALENDLY_URL = 'https://calendly.com/grayskripko/1-hour-meeting';
         const WEBHOOK_URL = 'https://hook.us2.make.com/r6fji0dfw48g5hwx1b8i1u0al1tfkj88';
@@ -62,9 +67,9 @@
             const loadingMsg = document.getElementById('loading-msg');
             const widgetContainer = document.getElementById('calendly-embed');
 
+            // Init Widget
             if (typeof Calendly !== 'undefined') {
                 loadingMsg.style.display = 'none';
-                
                 Calendly.initInlineWidget({
                     url: CALENDLY_URL,
                     parentElement: widgetContainer,
@@ -82,28 +87,39 @@
                 loadingMsg.innerHTML = "Error loading calendar script. Please refresh.";
             }
 
-            function isCalendlyEvent(e) {
-                return e.origin === "https://calendly.com" && 
-                       e.data.event && 
-                       e.data.event.indexOf("calendly.event_scheduled") === 0;
-            }
-
+            // 2. DEBUGGING & ATTRIBUTION
             window.addEventListener("message", function(e) {
-                if (isCalendlyEvent(e)) {
-                    const payload = {
-                        advisor_name: ADVISOR_NAME,
-                        lead_email: leadEmail,
-                        lead_name: leadName,
-                        lead_company: leadCompany,
-                        booking_timestamp: new Date().toISOString(),
-                        status: "confirmed"
-                    };
+                // Filter out non-Calendly messages to keep console cleanish
+                if(e.origin === "https://calendly.com") {
+                    // LOG ALL CALENDLY EVENTS TO SEE WHAT IS HAPPENING
+                    console.log("Calendly Event Fired:", e.data.event);
+                    
+                    if (e.data.event === "calendly.event_scheduled") {
+                        console.log("✅ Booking Confirmed. Attempting Webhook...");
 
-                    fetch(WEBHOOK_URL, {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify(payload)
-                    }).catch(err => {}); 
+                        const payload = {
+                            advisor_name: ADVISOR_NAME,
+                            lead_email: leadEmail,
+                            lead_name: leadName,
+                            lead_company: leadCompany,
+                            booking_timestamp: new Date().toISOString(),
+                            status: "confirmed"
+                        };
+
+                        fetch(WEBHOOK_URL, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify(payload)
+                        })
+                        .then(response => {
+                            if(response.ok) {
+                                console.log("✅ Webhook Success: Data sent to Make.com");
+                            } else {
+                                console.error("❌ Webhook Failed: Server responded with " + response.status);
+                            }
+                        })
+                        .catch(err => console.error('❌ Webhook Network Error:', err));
+                    }
                 }
             });
         });
