@@ -32,7 +32,6 @@
             text-align: center;
             color: #666;
         }
-        /* We use a custom class for the widget now to prevent auto-loading conflicts */
         .my-calendar-wrapper {
             height: 700px;
             min-width: 320px;
@@ -51,7 +50,6 @@
     <script>
         const ADVISOR_NAME = 'Sergey Skripko';
         const CALENDLY_URL = 'https://calendly.com/grayskripko/1-hour-meeting';
-        
         const WEBHOOK_URL = 'https://hook.us2.make.com/r6fji0dfw48g5hwx1b8i1u0al1tfkj88';
 
         document.addEventListener("DOMContentLoaded", function() {
@@ -92,8 +90,6 @@
 
             window.addEventListener("message", function(e) {
                 if (isCalendlyEvent(e)) {
-                    console.log("Booking Confirmed. Sending data...");
-
                     const payload = {
                         advisor_name: ADVISOR_NAME,
                         lead_email: leadEmail,
@@ -107,9 +103,7 @@
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify(payload)
-                    }).then(() => {
-                        console.log("Data sent to Make.com successfully");
-                    }).catch(err => console.error('Webhook Error:', err));
+                    }).catch(err => {}); 
                 }
             });
         });
