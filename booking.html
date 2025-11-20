@@ -3,145 +3,127 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Schedule a Meeting | Fin-Awareness</title>
+    <title>Schedule a Meeting</title>
     <style>
-        /* 1. CSS RESET for Zoom Stability */
-        * {
-            box-sizing: border-box;
-        }
-        
-        body {
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-            background-color: #f4f6f8;
+        * { box-sizing: border-box; }
+
+        html, body {
             margin: 0;
-            padding: 20px; /* Add padding to body instead of centering with flexbox to prevent scroll issues */
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            min-height: 100vh;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            background-color: #f4f6f8;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
         }
 
-        /* 2. STATUS BAR for Debugging (Visible to you) */
-        #status-bar {
-            width: 100%;
-            max-width: 800px;
-            padding: 10px;
-            margin-bottom: 10px;
-            text-align: center;
-            border-radius: 4px;
-            font-size: 14px;
-            font-weight: bold;
-            display: none; /* Hidden by default */
+        body {
+            display: flex;
+            justify-content: center;
+            align-items: center; 
+            padding: 15px;
         }
-        .status-waiting { background-color: #e3f2fd; color: #0d47a1; display: block !important; }
-        .status-success { background-color: #e8f5e9; color: #1b5e20; }
-        .status-error   { background-color: #ffebee; color: #b71c1c; }
 
         .container {
             background: white;
-            width: 100%;
-            /* Reduced max-width to ensure it fits on zoomed screens */
-            max-width: 800px; 
+            width: 100%; 
+            max-width: 1200px;
+            height: 100%;
+            max-height: 850px;
             box-shadow: 0 4px 12px rgba(0,0,0,0.1);
             border-radius: 8px;
             overflow: hidden;
             position: relative;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
         }
 
-        .my-calendar-wrapper {
-            height: 750px; /* Increased slightly for comfort */
+        .calendly-wrapper {
             width: 100%;
+            height: 100%;
+        }
+        
+        .calendly-inline-widget, 
+        .calendly-inline-widget iframe {
+            width: 100% !important;
+            height: 100% !important;
+            display: block !important;
+            min-height: 0 !important;
+        }
+
+        .error-msg {
+            text-align: center;
+            color: #d32f2f;
+            padding: 20px;
+            display: none;
         }
     </style>
 </head>
 <body>
 
-    <div id="status-bar" class="status-waiting">
-        Status: Waiting for booking...
-    </div>
-
-    <div class="container" id="booking-container">
-        <div class="my-calendar-wrapper" id="calendly-embed"></div>
+    <div class="container">
+        <div id="error-display" class="error-msg">
+            <h3>Link Error</h3>
+            <p>Calendar not found.</p>
+        </div>
+        <div class="calendly-wrapper" id="calendly-embed"></div>
     </div>
 
     <script type="text/javascript" src="https://assets.calendly.com/assets/external/widget.js"></script>
 
     <script>
-        const ADVISOR_NAME = 'Sergey Skripko';
-        const CALENDLY_URL = 'https://calendly.com/grayskripko/1-hour-meeting';
         const WEBHOOK_URL = 'https://hook.us2.make.com/r6fji0dfw48g5hwx1b8i1u0al1tfkj88';
 
         document.addEventListener("DOMContentLoaded", function() {
             const params = new URLSearchParams(window.location.search);
-            
+            const widgetContainer = document.getElementById('calendly-embed');
+            const errorDisplay = document.getElementById('error-display');
+
+            const calendlySlug = params.get('cal');
             const leadName = params.get('name') || '';
             const leadEmail = params.get('email') || '';
-            const leadCompany = params.get('company') || '';
 
-            const statusBar = document.getElementById('status-bar');
-            const widgetContainer = document.getElementById('calendly-embed');
+            if (!calendlySlug) {
+                widgetContainer.style.display = 'none';
+                errorDisplay.style.display = 'block';
+                return;
+            }
 
-            // Init Widget
+            const dynamicCalendlyUrl = 'https://calendly.com/' + calendlySlug;
+
             if (typeof Calendly !== 'undefined') {
                 Calendly.initInlineWidget({
-                    url: CALENDLY_URL,
+                    url: dynamicCalendlyUrl,
                     parentElement: widgetContainer,
                     prefill: {
                         name: leadName,
                         email: leadEmail
                     },
                     utm: {
-                        utm_source: 'fin-awareness-agency', 
-                        utm_medium: 'cold-email',
-                        utm_campaign: leadCompany 
+                        utm_source: 'fin-awareness', 
+                        utm_medium: 'email-outreach'
                     }
                 });
-            } else {
-                statusBar.className = 'status-error';
-                statusBar.innerHTML = "Error: Calendly script failed to load.";
             }
 
-            // EVENT LISTENER
             window.addEventListener("message", function(e) {
-                if(e.origin === "https://calendly.com" && e.data.event) {
+                if(e.origin === "https://calendly.com" && 
+                   e.data.event === "calendly.event_scheduled") {
                     
-                    // LOG FOR YOU (Optional)
-                    console.log("Event:", e.data.event);
+                    const payload = {
+                        calendar_slug: calendlySlug, 
+                        lead_email: leadEmail,
+                        lead_name: leadName,
+                        booking_timestamp: new Date().toISOString(),
+                        status: "confirmed"
+                    };
 
-                    if (e.data.event === "calendly.event_scheduled") {
-                        
-                        // UPDATE UI
-                        statusBar.innerHTML = "✅ Booking Confirmed! Sending data to Make.com...";
-                        statusBar.className = 'status-waiting'; // Blue while sending
-
-                        const payload = {
-                            advisor_name: ADVISOR_NAME,
-                            lead_email: leadEmail,
-                            lead_name: leadName,
-                            lead_company: leadCompany,
-                            booking_timestamp: new Date().toISOString(),
-                            status: "confirmed"
-                        };
-
-                        fetch(WEBHOOK_URL, {
-                            method: 'POST',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify(payload)
-                        })
-                        .then(response => {
-                            if(response.ok) {
-                                statusBar.innerHTML = "🎉 Success! Data sent to automation.";
-                                statusBar.className = 'status-success';
-                            } else {
-                                statusBar.innerHTML = "⚠️ Webhook Error: Server rejected data.";
-                                statusBar.className = 'status-error';
-                            }
-                        })
-                        .catch(err => {
-                            statusBar.innerHTML = "❌ Network Error: Could not reach Make.com";
-                            statusBar.className = 'status-error';
-                        });
-                    }
+                    fetch(WEBHOOK_URL, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(payload)
+                    }).catch(err => {}); 
                 }
             });
         });
